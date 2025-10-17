@@ -1,0 +1,32 @@
+name: Run Playwright Scraper
+
+on:
+  workflow_dispatch:  # 👈 enables manual trigger
+  schedule:
+    - cron: "0 2 * * *"  # optional: run daily at 2 AM UTC
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+
+      - name: Run scraper
+        run: python scrape_greenlight.py
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraped-html
+          path: output.html
