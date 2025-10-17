@@ -1,4 +1,4 @@
-name: Run Playwright Scraper
+name: Run Playwright Scraper and Post to n8n
 
 on:
   workflow_dispatch:
@@ -11,33 +11,70 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - run: |
+      - name: Install dependencies and Playwright
+        run: |
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
-          playwright install chromium
+          npx playwright install chromium
 
       - name: Run scraper
         env:
           PRODUCT_CODES: ${{ github.event.inputs.product_codes }}
-        run: python scrape_greenlight.py
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: scraped-html
-          path: output_*.html
-          
-      - name: Send result to n8n
         run: |
-          zip -r output.zip scraped_pages/
-          curl -X POST \
+          echo "PRODUCT_CODES=${PRODUCT_CODES}"
+          python scrape_greenlight.py
+
+      - name: Debug workspace (show files)
+        run: |
+          echo "PWD: $(pwd)"
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          ls -la
+
+      - name: Create zip and upload to n8n (only if outputs exist)
+        env:
+          N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+        run: |
+          set -euo pipefail
+
+          # Prefer zipped scraped_pages/ if present
+          if [ -d scraped_pages ]; then
+            echo "Found scraped_pages/ — creating output.zip"
+            zip -r output.zip scraped_pages
+          # Otherwise, if there are HTML outputs, zip those
+          elif compgen -G "output_*.html" > /dev/null; then
+            echo "Found output_*.html — creating output.zip"
+            zip output.zip output_*.html
+          else
+            echo "ERROR: nothing to zip (no scraped_pages/ and no output_*.html)"
+            ls -la
+            exit 1
+          fi
+
+          # Upload to n8n
+          echo "Uploading output.zip to n8n..."
+          curl -v -X POST \
             -H "Content-Type: multipart/form-data" \
             -F "file=@output.zip" \
             -F "product_codes=${{ github.event.inputs.product_codes }}" \
-            ${{ secrets.N8N_WEBHOOK_URL }}
+            "${N8N_WEBHOOK_URL}"
 
+      - name: Upload artifacts (safe fallback)
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraped-outputs
+          path: |
+            output.zip
+            output_*.html
+            scraped_pages/**
