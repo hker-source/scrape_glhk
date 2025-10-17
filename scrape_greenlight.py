@@ -1,12 +1,22 @@
-from playwright.sync_api import sync_playwright
-import json, os, time
+from playwright.sync_api import sync_playwright, Error as PlaywrightError
+import json, os, time, sys
 
 USERNAME = "neong"
 PASSWORD = "Green!HKG3"
 
 def scrape(codes):
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        try:
+            browser = p.chromium.launch(headless=True)
+        except PlaywrightError as e:
+            print("ERROR: Playwright failed to launch the browser.")
+            print(str(e))
+            print()
+            print("Hint: Playwright browser binaries are missing. Run:")
+            print("  python -m playwright install --with-deps chromium")
+            print("In CI, add a workflow step that runs that command before running this script.")
+            raise
+
         page = browser.new_page()
 
         # Login once
@@ -37,9 +47,14 @@ if __name__ == "__main__":
             codes = json.load(f)
     else:
         env_codes = os.getenv("PRODUCT_CODES", "")
-        codes = json.loads(env_codes) if env_codes else []
+        try:
+            codes = json.loads(env_codes) if env_codes else []
+        except json.JSONDecodeError:
+            # fallback: try comma separated
+            codes = [c.strip() for c in env_codes.split(",") if c.strip()]
 
     if not codes:
         print("⚠️ No product codes found, exiting.")
+        sys.exit(0)
     else:
         scrape(codes)
