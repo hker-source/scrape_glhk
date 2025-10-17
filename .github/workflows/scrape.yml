@@ -23,11 +23,18 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies and Playwright
+      - name: Install Python deps (and Playwright)
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          npx playwright install chromium
+
+      - name: Install Playwright browsers and OS deps
+        # This downloads browser binaries and installs OS dependencies on the runner.
+        run: |
+          # Use python -m playwright to ensure the correct Python environment is used.
+          python -m playwright install --with-deps chromium
+          # show installed browsers for debugging
+          python -m playwright --version || true
 
       - name: Run scraper
         env:
@@ -48,11 +55,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Prefer zipped scraped_pages/ if present
           if [ -d scraped_pages ]; then
             echo "Found scraped_pages/ — creating output.zip"
             zip -r output.zip scraped_pages
-          # Otherwise, if there are HTML outputs, zip those
           elif compgen -G "output_*.html" > /dev/null; then
             echo "Found output_*.html — creating output.zip"
             zip output.zip output_*.html
@@ -62,7 +67,6 @@ jobs:
             exit 1
           fi
 
-          # Upload to n8n
           echo "Uploading output.zip to n8n..."
           curl -v -X POST \
             -H "Content-Type: multipart/form-data" \
