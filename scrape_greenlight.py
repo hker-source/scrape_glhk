@@ -1,73 +1,90 @@
-name: Run Playwright Scraper and Post to n8n
+from playwright.sync_api import sync_playwright
+import time
+import json, os, time
 
-on:
-  workflow_dispatch:
-    inputs:
-      product_codes:
-        description: 'JSON array of product codes'
-        required: true
-        default: '["13699"]'
+USERNAME = "neong"
+PASSWORD = "Green!HKG3"
+SEARCH_URL = "https://store.greenlighttoys.com/store/products/search.aspx?search=13699"
 
-jobs:
-  scrape-and-post:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+def scrape():
+def scrape(codes):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page()
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+        print("🌐 Navigating to login page...")
+        # Login once
+        page.goto("https://store.greenlighttoys.com/Store/Customer/Login.aspx", wait_until="load")
+        time.sleep(3)
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          python -m playwright install --with-deps
+        # Debug: take a screenshot to check what the page looks like (saved as artifact)
+        page.screenshot(path="page_before_login.png")
 
-      - name: Run scraper
-        # Run the script which must write into ./scraped_pages/ (create dir if not exists)
-        env:
-          PRODUCT_CODES: ${{ github.event.inputs.product_codes }}
-          GL_USERNAME: ${{ secrets.GL_USERNAME }}
-          GL_PASSWORD: ${{ secrets.GL_PASSWORD }}
-        run: |
-          # ensure output folder exists
-          mkdir -p scraped_pages
-          # Run your script which should write output files to scraped_pages/
-          python scrape_greenlight.py
-          # debug: list files
-          echo "== files in workspace =="
-          pwd
-          ls -la
-          echo "== files in scraped_pages =="
-          ls -la scraped_pages || true
+        # Try a few possible selectors
+        try:
+            page.wait_for_selector("input[name='ctl00$MainContent$LoginUser$UserName']", timeout=10000)
+            page.fill("input[name='ctl00$MainContent$LoginUser$UserName']", USERNAME)
+        except:
+            print("⚠️ Default selector not found, trying alternate...")
+            # Try a looser selector that just finds any username field
+            page.fill("input[type='text']", USERNAME)
 
-      - name: Zip results
-        run: |
-          # zip will fail with exit code 12 if path not present; guard it
-          if [ -d "scraped_pages" ] && [ "$(ls -A scraped_pages)" ]; then
-            zip -r scraped_output.zip scraped_pages
-            echo "Zipped scraped_output.zip"
-          else
-            echo "No scraped output found — failing job"
-            ls -la
-            exit 1
-          fi
+        # Fill password
+        try:
+            page.fill("input[type='password']", PASSWORD)
+        except:
+            print("⚠️ Password field not found, skipping...")
 
-      - name: Send result to n8n
-        env:
-          N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
-          PRODUCT_CODES: ${{ github.event.inputs.product_codes }}
-        run: |
-          # POST the zip and metadata to n8n
-          curl -s -o /tmp/curl_resp.txt -w "%{http_code}" -X POST \
-            -H "Accept: */*" \
-            -F "file=@scraped_output.zip" \
-            -F "product_codes=${PRODUCT_CODES}" \
-            "${N8N_WEBHOOK_URL}" > /tmp/statuscode
-          cat /tmp/statuscode
-          echo
-          echo "curl response:"
-          cat /tmp/curl_resp.txt || true
+        # Click login button — try a few alternatives
+        try:
+            page.click("input[name='ctl00$MainContent$LoginUser$LoginButton']")
+        except:
+            print("⚠️ Default login button not found, trying alternative...")
+            page.locator("input[type='submit'], button").first.click()
+
+        # Wait for post-login redirect
+        page.fill("input[type='text']", USERNAME)
+        page.fill("input[type='password']", PASSWORD)
+        page.locator("input[type='submit'], button").first.click()
+        page.wait_for_load_state("networkidle")
+        time.sleep(2)
+
+        print("🔍 Navigating to search page...")
+        page.goto(SEARCH_URL)
+        page.wait_for_load_state("networkidle")
+        time.sleep(2)
+
+        html = page.content()
+        with open("output.html", "w", encoding="utf-8") as f:
+            f.write(html)
+
+        page.screenshot(path="page_after_login.png")
+
+        print("✅ Scraping done. HTML and screenshots saved.")
+        # Loop over product codes
+        for code in codes:
+            url = f"https://store.greenlighttoys.com/store/products/search.aspx?search={code}"
+            print(f"🔍 Scraping {url}")
+            page.goto(url)
+            page.wait_for_load_state("networkidle")
+            html = page.content()
+            with open(f"output_{code}.html", "w", encoding="utf-8") as f:
+                f.write(html)
+
+        print("✅ All pages scraped.")
+        browser.close()
+
+if __name__ == "__main__":
+    scrape()
+    # Read product codes from environment variable or JSON file
+    if os.path.exists("product_codes.json"):
+        with open("product_codes.json", "r") as f:
+            codes = json.load(f)
+    else:
+        env_codes = os.getenv("PRODUCT_CODES", "")
+        codes = json.loads(env_codes) if env_codes else []
+
+    if not codes:
+        print("⚠️ No product codes found, exiting.")
+    else:
+        scrape(codes)
