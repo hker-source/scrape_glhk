@@ -31,3 +31,13 @@ jobs:
         with:
           name: scraped-html
           path: output_*.html
+          
+      - name: Send result to n8n
+        run: |
+          zip -r output.zip scraped_pages/
+          curl -X POST \
+            -H "Content-Type: multipart/form-data" \
+            -F "file=@output.zip" \
+            -F "product_codes=${{ github.event.inputs.product_codes }}" \
+            ${{ secrets.N8N_WEBHOOK_URL }}
+
