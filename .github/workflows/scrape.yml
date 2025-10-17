@@ -1,9 +1,7 @@
 name: Run Playwright Scraper
 
 on:
-  workflow_dispatch:  # 👈 enables manual trigger
-  schedule:
-    - cron: "0 2 * * *"  # optional: run daily at 2 AM UTC
+  workflow_dispatch:
 
 jobs:
   scrape:
@@ -25,8 +23,11 @@ jobs:
       - name: Run scraper
         run: python scrape_greenlight.py
 
-      - name: Upload artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: scraped-html
-          path: output.html
+          name: scraped-output
+          path: |
+            output.html
+            page_before_login.png
+            page_after_login.png
