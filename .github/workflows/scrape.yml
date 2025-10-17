@@ -2,32 +2,32 @@ name: Run Playwright Scraper
 
 on:
   workflow_dispatch:
+    inputs:
+      product_codes:
+        description: "List of product codes as JSON array"
+        required: true
+        default: '["13699"]'
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
-        run: |
+      - run: |
           pip install -r requirements.txt
           playwright install chromium
 
       - name: Run scraper
+        env:
+          PRODUCT_CODES: ${{ github.event.inputs.product_codes }}
         run: python scrape_greenlight.py
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: scraped-output
-          path: |
-            output.html
-            page_before_login.png
-            page_after_login.png
+          name: scraped-html
+          path: output_*.html
