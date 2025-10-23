@@ -33,9 +33,18 @@ def scrape(codes):
             print(f"🔍 Scraping {url}")
             page.goto(url)
             page.wait_for_load_state("networkidle")
-            html = page.content()
-            with open(f"output_{code}.html", "w", encoding="utf-8") as f:
-                f.write(html)
+            # Extract visible text rather than raw HTML to make downstream parsing simpler.
+            try:
+                body_text = page.locator("body").inner_text()
+            except Exception:
+                # Fallback: full page content if body extraction fails
+                body_text = page.content()
+            # Prepend a small header with metadata to help downstream parsing if needed
+            header = f"URL: {url}\nPRODUCT_CODE: {code}\nSCRAPED_AT: {time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}\n\n"
+            out_path = f"output_{code}.txt"
+            with open(out_path, "w", encoding="utf-8") as f:
+                f.write(header)
+                f.write(body_text)
 
         print("✅ All pages scraped.")
         browser.close()
