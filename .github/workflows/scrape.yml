@@ -46,25 +46,25 @@ jobs:
           echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
           ls -la
 
-      - name: Upload HTML files directly to n8n (no zip)
+      - name: Upload TXT files directly to n8n (no zip)
         env:
           N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
           PRODUCT_CODES: ${{ github.event.inputs.product_codes }}
         run: |
           set -euo pipefail
 
-          # Ensure at least one matching HTML file exists
-          if ! compgen -G "output_*.html" > /dev/null; then
-            echo "ERROR: no output_*.html files found to upload."
+          # Ensure at least one matching TXT file exists
+          if ! compgen -G "output_*.txt" > /dev/null; then
+            echo "ERROR: no output_*.txt files found to upload."
             ls -la
             exit 1
           fi
 
-          # Build curl args dynamically so we can attach every HTML file as a multipart field.
+          # Build curl args dynamically so we can attach every TXT file as a multipart field.
           # Use file[] as the field name (common convention). If your n8n expects a different
           # field name (e.g. file or files), change "file[]" below.
           curl_args=()
-          for f in output_*.html; do
+          for f in output_*.txt; do
             [ -f "$f" ] || continue
             curl_args+=(-F "file[]=@${f}")
           done
@@ -72,8 +72,7 @@ jobs:
           # Attach product_codes as a normal form field so n8n can access it.
           curl_args+=(-F "product_codes=${PRODUCT_CODES}")
 
-          echo "Uploading ${#curl_args[@]} form fields to n8n webhook..."
-          # Verbose to help debug in Action logs; the URL is stored in a secret so it won't be printed.
+          echo "Uploading TXT files to n8n..."
           curl -v -X POST "${curl_args[@]}" "${N8N_WEBHOOK_URL}"
 
       - name: Upload artifacts (safe fallback)
@@ -81,4 +80,4 @@ jobs:
         with:
           name: scraped-outputs
           path: |
-            output_*.html
+            output_*.txt
