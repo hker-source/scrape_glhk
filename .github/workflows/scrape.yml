@@ -1,4 +1,4 @@
-name: Run Playwright Scraper and Post to n8n
+name: Run Playwright Scraper and Upload to Google Drive
 
 on:
   workflow_dispatch:
@@ -46,34 +46,32 @@ jobs:
           echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
           ls -la
 
-      - name: Upload TXT files directly to n8n (no zip)
+      - name: Install Google API dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install google-api-python-client google-auth google-auth-httplib2 google-auth-oauthlib
+
+      - name: Create Google Doc from scraped TXT and upload to Drive
         env:
-          N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
-          PRODUCT_CODES: ${{ github.event.inputs.product_codes }}
+          # Secret: put your service account JSON (whole JSON content) into this repo secret name GCP_SA_KEY
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          # Drive folder id (you provided this); can be passed directly or stored as a secret if preferred
+          DRIVE_FOLDER_ID: 19fFeJylapxHj6cJRIfveEupbzOr76WVQ
         run: |
           set -euo pipefail
 
-          # Ensure at least one matching TXT file exists
-          if ! compgen -G "output_*.txt" > /dev/null; then
-            echo "ERROR: no output_*.txt files found to upload."
-            ls -la
+          # Write service account key to a file for the google libs
+          if [ -z "${GCP_SA_KEY:-}" ]; then
+            echo "ERROR: GCP_SA_KEY secret is empty or not set."
             exit 1
           fi
+          KEYFILE="$(mktemp)"
+          echo "$GCP_SA_KEY" > "$KEYFILE"
+          chmod 600 "$KEYFILE"
+          export GOOGLE_APPLICATION_CREDENTIALS="$KEYFILE"
 
-          # Build curl args dynamically so we can attach every TXT file as a multipart field.
-          # Use file[] as the field name (common convention). If your n8n expects a different
-          # field name (e.g. file or files), change "file[]" below.
-          curl_args=()
-          for f in output_*.txt; do
-            [ -f "$f" ] || continue
-            curl_args+=(-F "file[]=@${f}")
-          done
-
-          # Attach product_codes as a normal form field so n8n can access it.
-          curl_args+=(-F "product_codes=${PRODUCT_CODES}")
-
-          echo "Uploading TXT files to n8n..."
-          curl -v -X POST "${curl_args[@]}" "${N8N_WEBHOOK_URL}"
+          # Run helper script to create Google Doc and upload
+          python scripts/upload_to_drive.py --folder-id "${DRIVE_FOLDER_ID}"
 
       - name: Upload artifacts (safe fallback)
         uses: actions/upload-artifact@v4
