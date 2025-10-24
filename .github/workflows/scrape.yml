@@ -71,7 +71,7 @@ jobs:
           export GOOGLE_APPLICATION_CREDENTIALS="$KEYFILE"
 
           # Run helper script to create Google Doc and upload
-          python scripts/upload_to_drive.py --folder-id "${DRIVE_FOLDER_ID}"
+          python ./upload_to_drive.py --folder-id "${DRIVE_FOLDER_ID}"
 
       - name: Upload artifacts (safe fallback)
         uses: actions/upload-artifact@v4
