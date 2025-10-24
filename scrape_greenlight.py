@@ -59,8 +59,41 @@ if __name__ == "__main__":
         try:
             codes = json.loads(env_codes) if env_codes else []
         except json.JSONDecodeError:
-            # fallback: try comma separated
-            codes = [c.strip() for c in env_codes.split(",") if c.strip()]
+            # Better fallback: tolerate bracketed lists with trailing commas like "[30576,30577,]"
+            s = env_codes.strip()
+            if s.startswith("[") and s.endswith("]"):
+                s = s[1:-1]
+            # split on commas, strip whitespace and surrounding quotes
+            parts = [p.strip().strip('"').strip("'") for p in s.split(",")]
+            # keep non-empty parts
+            codes = [p for p in parts if p != ""]
+
+    # Normalize and filter out falsy entries (None, empty string, etc.)
+    normalized = []
+    for item in codes:
+        if item is None:
+            continue
+        # If it's already a number, keep as int
+        if isinstance(item, (int, float)):
+            try:
+                normalized.append(int(item))
+            except Exception:
+                normalized.append(item)
+            continue
+        # Otherwise treat as string: strip and try to convert to int
+        s = str(item).strip()
+        if not s:
+            continue
+        # Remove stray brackets that may survive parsing (e.g., "]" or "[")
+        if s in ("[", "]"):
+            continue
+        try:
+            normalized.append(int(s))
+        except ValueError:
+            normalized.append(s)
+
+    # Final filter to remove falsy values (this handles empty strings, None, 0 if you don't want zeros remove that case)
+    codes = list(filter(None, normalized))
 
     if not codes:
         print("⚠️ No product codes found, exiting.")
