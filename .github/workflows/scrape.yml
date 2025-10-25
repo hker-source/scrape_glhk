@@ -79,3 +79,26 @@ jobs:
           name: scraped-outputs
           path: |
             output_*.txt
+
+      - name: Send aggregated TXT via Gmail
+        env:
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          SENDER_EMAIL: ${{ secrets.SENDER_EMAIL }}
+          # Optional: if you want to send to a different recipient, set RECIPIENT_EMAIL here
+          # RECIPIENT_EMAIL: someone@example.com
+        run: |
+          set -euo pipefail
+
+          python -m pip install --upgrade pip
+          python -m pip install requests
+
+          echo "Repository files (for debug):"
+          ls -la
+
+          # Show the files we're about to aggregate (debug only)
+          ls -la output_*.txt || true
+
+          # Run the email sender. Script is in scripts/email_results.py
+          python ./scripts/email_results.py
