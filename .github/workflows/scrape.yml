@@ -56,7 +56,7 @@ jobs:
           # Secret: put your service account JSON (whole JSON content) into this repo secret name GCP_SA_KEY
           GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
           # Drive folder id (you provided this); can be passed directly or stored as a secret if preferred
-          DRIVE_FOLDER_ID: 19fFeJylapxHj6cJRIfveEupbzOr76WVQ
+          DRIVE_FOLDER_ID: 1c-uXaCngAcQ1QUyFDMPuH7hxKO0UX0Dw
         run: |
           set -euo pipefail
 
