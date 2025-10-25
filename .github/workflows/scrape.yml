@@ -101,4 +101,4 @@ jobs:
           ls -la output_*.txt || true
 
           # Run the email sender. Script is in scripts/email_results.py
-          python ./scripts/email_results.py
+          python ./email_results.py
